@@ -69,7 +69,6 @@ h2{font-size:.95rem;margin:16px 0 8px}
   <p class="sub" id="place"></p>
   <div class="bar" role="group" aria-label="表示の間隔">
     <button type="button" id="b1" aria-pressed="true">1時間ごと</button>
-    <button type="button" id="b3" aria-pressed="false">3時間ごと</button>
     <button type="button" id="bw" aria-pressed="false">週間</button>
     <button type="button" id="bgps">現在地を更新</button>
     <button type="button" id="inst" hidden>アプリとして入れる</button>
@@ -213,17 +212,14 @@ h2{font-size:.95rem;margin:16px 0 8px}
   function register(k,p){pl[k]=p;save();fetchPlace(k)}
 
   function setView(v){
-    view=v;step=(v==="h3"?3:1);
+    view=v;step=1;
     $("b1").setAttribute("aria-pressed",v==="h1"?"true":"false");
-    $("b3").setAttribute("aria-pressed",v==="h3"?"true":"false");
     $("bw").setAttribute("aria-pressed",v==="wk"?"true":"false");
     $("weekbox").hidden=(v!=="wk");$("hourbox").hidden=(v==="wk");
-    $("hh").textContent=(v==="h3"?"3時間ごとの天気":"1時間ごとの天気");
     try{localStorage.setItem("tenki_view",v)}catch(e){}
     renderList();
   }
   $("b1").onclick=function(){setView("h1")};
-  $("b3").onclick=function(){setView("h3")};
   $("bw").onclick=function(){setView("wk")};
   $("bgps").onclick=gps;
   $("setgps").onclick=function(){
@@ -281,7 +277,7 @@ h2{font-size:.95rem;margin:16px 0 8px}
     if(document.visibilityState==="visible"&&Date.now()-lastRef>10*60*1000){lastRef=Date.now();gps();["home","work"].forEach(function(k){if(pl[k])fetchPlace(k)})}
   });
   restore();KEYS.forEach(cacheLoad);renderAll();
-  try{var sv=localStorage.getItem("tenki_view");if(sv==="h1"||sv==="h3"||sv==="wk")setView(sv)}catch(e){}gps();fetchPlace("home");fetchPlace("work");
+  try{var sv=localStorage.getItem("tenki_view");if(sv==="h1"||sv==="wk")setView(sv)}catch(e){}gps();fetchPlace("home");fetchPlace("work");
   setInterval(function(){KEYS.forEach(function(k){if(pl[k])fetchPlace(k)})},1800000);
 })();
 </script>
