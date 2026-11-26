@@ -2,18 +2,20 @@
 <html lang="ja">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>1時間ごとの天気</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icon-180.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="天気">
 <meta name="theme-color" content="#1f6fd1">
 <style>
 :root{--bg:#f3f6fa;--card:#fff;--fg:#17202b;--sub:#5a6877;--line:#dde4ec;--accent:#1f6fd1;--rain:#1f6fd1}
 @media (prefers-color-scheme:dark){:root{--bg:#10151c;--card:#19212b;--fg:#e8eef5;--sub:#93a1b1;--line:#2a3441;--accent:#5aa2f5;--rain:#5aa2f5}}
 *{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 system-ui,"Hiragino Sans","Yu Gothic UI",Meiryo,sans-serif;padding:16px}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 system-ui,"Hiragino Sans","Yu Gothic UI",Meiryo,sans-serif;padding:16px;padding-top:max(16px,env(safe-area-inset-top));padding-bottom:max(24px,env(safe-area-inset-bottom));padding-left:max(16px,env(safe-area-inset-left));padding-right:max(16px,env(safe-area-inset-right));-webkit-text-size-adjust:100%;overscroll-behavior-y:contain}
 main{max-width:680px;margin:0 auto}
 h1{font-size:1.1rem;margin:0 0 10px}
 button,input{font:inherit;color:var(--fg)}
@@ -68,7 +70,9 @@ h2{font-size:.95rem;margin:16px 0 8px}
     <button type="button" id="b1" aria-pressed="true">1時間ごと</button>
     <button type="button" id="b3" aria-pressed="false">3時間ごと</button>
     <button type="button" id="bgps">現在地を更新</button>
+    <button type="button" id="inst" hidden>アプリとして入れる</button>
   </div>
+  <p class="sub" id="iosHint" hidden>iPhoneでアプリにするには、Safariの下の共有ボタン →「ホーム画面に追加」を押してください。</p>
   <div id="setbox" class="set" hidden>
     <p class="sub" id="settext"></p>
     <div class="bar">
@@ -109,6 +113,8 @@ h2{font-size:.95rem;margin:16px 0 8px}
   function save(){try{localStorage.setItem("tenki_places",JSON.stringify({home:pl.home,work:pl.work}))}catch(e){}}
   function restore(){try{var s=JSON.parse(localStorage.getItem("tenki_places")||"{}");if(s.home)pl.home=s.home;if(s.work)pl.work=s.work}catch(e){}}
 
+  function cacheSave(k,p,j){try{localStorage.setItem("tenki_cache_"+k,JSON.stringify({p:p,j:j,t:Date.now()}))}catch(e){}}
+  function cacheLoad(k){try{var c=JSON.parse(localStorage.getItem("tenki_cache_"+k)||"null");if(c&&c.j&&c.p&&Date.now()-c.t<6*3600*1000){if(!pl[k])pl[k]=c.p;dt[k]=c.j}}catch(e){}}
   function fetchPlace(k){
     var p=pl[k];if(!p){dt[k]=null;renderAll();return}
     var u="https://api.open-meteo.com/v1/forecast?latitude="+p.lat+"&longitude="+p.lon+
@@ -117,7 +123,7 @@ h2{font-size:.95rem;margin:16px 0 8px}
       "&timezone=Asia%2FTokyo&forecast_days=7&wind_speed_unit=ms";
     dt[k]="loading";renderAll();
     fetch(u).then(function(r){if(!r.ok)throw new Error(r.status);return r.json()})
-      .then(function(j){dt[k]=j;renderAll()})
+      .then(function(j){dt[k]=j;cacheSave(k,p,j);renderAll()})
       .catch(function(){dt[k]="error";renderAll()});
   }
 
@@ -195,7 +201,7 @@ h2{font-size:.95rem;margin:16px 0 8px}
   function renderAll(){renderCards();renderWeek();renderList()}
 
   function gps(){
-    gpsFail=false;pl.gps=null;dt.gps=null;renderAll();
+    gpsFail=false;renderAll();
     if(!navigator.geolocation){gpsFail=true;renderAll();return}
     navigator.geolocation.getCurrentPosition(function(pos){
       pl.gps={name:"現在地",lat:pos.coords.latitude,lon:pos.coords.longitude};fetchPlace("gps");
@@ -250,7 +256,18 @@ h2{font-size:.95rem;margin:16px 0 8px}
     });
   });
 
-  restore();renderAll();gps();fetchPlace("home");fetchPlace("work");
+  var dp=null;
+  window.addEventListener("beforeinstallprompt",function(e){e.preventDefault();dp=e;$("inst").hidden=false});
+  $("inst").onclick=function(){if(!dp)return;dp.prompt();dp.userChoice.finally(function(){dp=null;$("inst").hidden=true})};
+  var standalone=(window.matchMedia&&matchMedia("(display-mode: standalone)").matches)||navigator.standalone;
+  var ios=/iPhone|iPad|iPod/.test(navigator.userAgent);
+  if(ios&&!standalone)$("iosHint").hidden=false;
+  if("serviceWorker" in navigator&&location.protocol==="https:"){navigator.serviceWorker.register("sw.js").catch(function(){})}
+  var lastRef=Date.now();
+  document.addEventListener("visibilitychange",function(){
+    if(document.visibilityState==="visible"&&Date.now()-lastRef>10*60*1000){lastRef=Date.now();gps();["home","work"].forEach(function(k){if(pl[k])fetchPlace(k)})}
+  });
+  restore();KEYS.forEach(cacheLoad);renderAll();gps();fetchPlace("home");fetchPlace("work");
   setInterval(function(){KEYS.forEach(function(k){if(pl[k])fetchPlace(k)})},1800000);
 })();
 </script>
