@@ -44,6 +44,8 @@ input{flex:1;min-width:0;background:var(--card);border:1px solid var(--line);bor
 .row .tp{font-weight:600}
 .row .pa{color:var(--sub);font-size:.85rem}
 .row.rainy{background:color-mix(in srgb,var(--rain) 8%,var(--card))}
+.cand{display:flex;flex-direction:column;gap:6px;margin-bottom:8px}
+.cb{text-align:left}
 h2{font-size:.95rem;margin:16px 0 8px}
 .wrow{display:grid;grid-template-columns:5rem 1.8rem 1fr 3rem 5.2rem;gap:6px;align-items:center;padding:10px 12px;border-top:1px solid var(--line);font-variant-numeric:tabular-nums}
 .wrow:first-child{border-top:0}
@@ -73,9 +75,10 @@ h2{font-size:.95rem;margin:16px 0 8px}
       <button type="button" id="setgps">いまいる場所を登録</button>
     </div>
     <form id="f">
-      <input id="q" type="search" placeholder="地名で探して登録（例：呉、広島、東広島）" aria-label="地名">
+      <input id="q" type="search" placeholder="住所か地名（例：広島県呉市郷原町）" aria-label="地名">
       <button type="submit">登録</button>
     </form>
+    <div id="cand" class="cand"></div>
   </div>
   <h2>週間天気</h2>
   <div class="list" id="week"></div>
@@ -210,13 +213,41 @@ h2{font-size:.95rem;margin:16px 0 8px}
       register(sel,{name:"登録した場所",lat:pos.coords.latitude,lon:pos.coords.longitude});
     },function(){$("settext").textContent="位置情報が許可されていません。地名で登録してください。"},{timeout:10000});
   };
+  function setMsg(s){$("settext").textContent=s}
+  function done(p){
+    $("cand").textContent="";$("q").value="";
+    register(sel,p);setMsg("「"+p.name+"」を"+NAMES[sel]+"に登録しました。");
+  }
+  function showCands(list){
+    var box=$("cand");box.textContent="";
+    setMsg("当てはまる場所が"+list.length+"件あります。選んでください。");
+    list.forEach(function(p){
+      var b=el("button","cb",p.name);b.type="button";
+      b.onclick=function(){done(p)};box.appendChild(b);
+    });
+  }
+  function geocodeOM(q){
+    return fetch("https://geocoding-api.open-meteo.com/v1/search?name="+encodeURIComponent(q)+"&count=5&language=ja")
+      .then(function(r){return r.json()}).then(function(j){
+        return (j.results||[]).map(function(r){return {name:r.name+(r.admin1?"（"+r.admin1+"）":""),lat:r.latitude,lon:r.longitude}});
+      });
+  }
+  function geocodeGSI(q){
+    return fetch("https://msearch.gsi.go.jp/address-search/AddressSearch?q="+encodeURIComponent(q))
+      .then(function(r){return r.json()}).then(function(a){
+        return (a||[]).slice(0,5).map(function(f){return {name:f.properties.title,lat:f.geometry.coordinates[1],lon:f.geometry.coordinates[0]}});
+      });
+  }
   $("f").addEventListener("submit",function(ev){
-    ev.preventDefault();var q=$("q").value.trim();if(!q)return;
-    fetch("https://geocoding-api.open-meteo.com/v1/search?name="+encodeURIComponent(q)+"&count=1&language=ja")
-    .then(function(r){return r.json()}).then(function(j){
-      if(!j.results||!j.results.length){$("settext").textContent="「"+q+"」が見つかりませんでした。";return}
-      var r=j.results[0];register(sel,{name:r.name+(r.admin1?"（"+r.admin1+"）":""),lat:r.latitude,lon:r.longitude});$("q").value="";
-    }).catch(function(){$("settext").textContent="地名を調べられませんでした。"});
+    ev.preventDefault();var q=$("q").value.trim();if(!q){setMsg("住所か地名を入れてください。");return}
+    $("cand").textContent="";setMsg("探しています…");
+    geocodeGSI(q).catch(function(){return []}).then(function(list){
+      if(list.length)return list;
+      return geocodeOM(q).catch(function(){return []});
+    }).then(function(list){
+      if(!list.length){setMsg("「"+q+"」が見つかりませんでした。「広島県呉市郷原町」のように、県・市・町の順で入れてみてください（番地や建物名は外します）。");return}
+      if(list.length===1)done(list[0]);else showCands(list);
+    });
   });
 
   restore();renderAll();gps();fetchPlace("home");fetchPlace("work");
