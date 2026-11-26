@@ -44,6 +44,15 @@ input{flex:1;min-width:0;background:var(--card);border:1px solid var(--line);bor
 .row .tp{font-weight:600}
 .row .pa{color:var(--sub);font-size:.85rem}
 .row.rainy{background:color-mix(in srgb,var(--rain) 8%,var(--card))}
+h2{font-size:.95rem;margin:16px 0 8px}
+.wrow{display:grid;grid-template-columns:5rem 1.8rem 1fr 3rem 5.2rem;gap:6px;align-items:center;padding:10px 12px;border-top:1px solid var(--line);font-variant-numeric:tabular-nums}
+.wrow:first-child{border-top:0}
+.wrow .d{font-weight:600}
+.wrow .w{color:var(--sub);font-size:.85rem;min-width:0}
+.wrow .p{color:var(--rain);text-align:right}
+.wrow .mm{text-align:right;font-weight:600}
+.wrow .mm i{font-style:normal;color:var(--sub);font-weight:400}
+.wrow.rainy{background:color-mix(in srgb,var(--rain) 8%,var(--card))}
 .msg{color:var(--sub);padding:16px;text-align:center}
 .foot{color:var(--sub);font-size:.8rem;margin-top:12px}
 </style>
@@ -68,6 +77,9 @@ input{flex:1;min-width:0;background:var(--card);border:1px solid var(--line);bor
       <button type="submit">登録</button>
     </form>
   </div>
+  <h2>週間天気</h2>
+  <div class="list" id="week"></div>
+  <h2>1時間ごとの天気</h2>
   <div class="cols" aria-hidden="true"><span>時刻</span><span></span><span>天気</span><span>降水確率</span><span>気温</span><span>気圧</span></div>
   <div class="list" id="list"><div class="msg">読み込み中…</div></div>
   <p class="foot">データ：Open-Meteo（無料・登録不要）。家と仕事場の場所は、この端末のブラウザにだけ保存されます。</p>
@@ -98,7 +110,8 @@ input{flex:1;min-width:0;background:var(--card);border:1px solid var(--line);bor
     var p=pl[k];if(!p){dt[k]=null;renderAll();return}
     var u="https://api.open-meteo.com/v1/forecast?latitude="+p.lat+"&longitude="+p.lon+
       "&current=temperature_2m,weather_code,pressure_msl&hourly=temperature_2m,precipitation_probability,precipitation,weather_code,wind_speed_10m,pressure_msl"+
-      "&timezone=Asia%2FTokyo&forecast_days=3&wind_speed_unit=ms";
+      "&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max"+
+      "&timezone=Asia%2FTokyo&forecast_days=7&wind_speed_unit=ms";
     dt[k]="loading";renderAll();
     fetch(u).then(function(r){if(!r.ok)throw new Error(r.status);return r.json()})
       .then(function(j){dt[k]=j;renderAll()})
@@ -115,6 +128,7 @@ input{flex:1;min-width:0;background:var(--card);border:1px solid var(--line);bor
         var w=wc(d.current.weather_code);
         b.appendChild(el("div","i",w[0]));
         b.appendChild(el("div","t",Math.round(d.current.temperature_2m)+"℃"));
+        if(d.daily&&d.daily.temperature_2m_max)b.appendChild(el("div","s","最高"+Math.round(d.daily.temperature_2m_max[0])+"/最低"+Math.round(d.daily.temperature_2m_min[0])));
         b.appendChild(el("div","s",Math.round(d.current.pressure_msl)+" hPa"));
       }else{
         var m=!pl[k]?(k==="gps"?(gpsFail?"位置不明":"調べ中…"):"未登録"):d==="error"?"取得失敗":"読込中…";
@@ -157,7 +171,25 @@ input{flex:1;min-width:0;background:var(--card);border:1px solid var(--line);bor
       list.appendChild(row);count++;
     }
   }
-  function renderAll(){renderCards();renderList()}
+  function renderWeek(){
+    var box=$("week");box.textContent="";
+    var d=dt[sel];
+    if(!d||d==="loading"||d==="error"||!d.daily){box.appendChild(el("div","msg","—"));return}
+    var y=d.daily,days=["日","月","火","水","木","金","土"];
+    for(var i=0;i<y.time.length;i++){
+      var t=y.time[i],w=wc(y.weather_code[i]),pp=y.precipitation_probability_max[i];
+      var r=el("div","wrow"+(pp>=50?" rainy":""));
+      var dd=new Date(t+"T00:00:00");
+      r.appendChild(el("span","d",i===0?"今日":(dd.getMonth()+1)+"/"+dd.getDate()+"("+days[dd.getDay()]+")"));
+      r.appendChild(el("span",null,w[0]));
+      r.appendChild(el("span","w",w[1]));
+      r.appendChild(el("span","p",pp==null?"-":pp+"%"));
+      var m=el("span","mm",Math.round(y.temperature_2m_max[i])+"℃");
+      m.appendChild(el("i",null," / "+Math.round(y.temperature_2m_min[i])+"℃"));
+      r.appendChild(m);box.appendChild(r);
+    }
+  }
+  function renderAll(){renderCards();renderWeek();renderList()}
 
   function gps(){
     gpsFail=false;pl.gps=null;dt.gps=null;renderAll();
