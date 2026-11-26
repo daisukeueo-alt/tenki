@@ -49,12 +49,13 @@ input{flex:1;min-width:0;background:var(--card);border:1px solid var(--line);bor
 .cand{display:flex;flex-direction:column;gap:6px;margin-bottom:8px}
 .cb{text-align:left}
 h2{font-size:.95rem;margin:16px 0 8px}
-.wrow{display:grid;grid-template-columns:5rem 1.8rem 1fr 3rem 5.2rem;gap:6px;align-items:center;padding:10px 12px;border-top:1px solid var(--line);font-variant-numeric:tabular-nums}
+.wrow{display:grid;grid-template-columns:4.6rem 1.8rem 1fr 3rem 6.6rem;gap:6px;align-items:center;padding:10px 12px;border-top:1px solid var(--line);font-variant-numeric:tabular-nums}
 .wrow:first-child{border-top:0}
 .wrow .d{font-weight:600}
 .wrow .w{color:var(--sub);font-size:.85rem;min-width:0}
 .wrow .p{color:var(--rain);text-align:right}
-.wrow .mm{text-align:right;font-weight:600}
+.wrow .mm{text-align:right;font-weight:600;white-space:nowrap}
+.wrow .d{white-space:nowrap}
 .wrow .mm i{font-style:normal;color:var(--sub);font-weight:400}
 .wrow.rainy{background:color-mix(in srgb,var(--rain) 8%,var(--card))}
 .msg{color:var(--sub);padding:16px;text-align:center}
@@ -69,6 +70,7 @@ h2{font-size:.95rem;margin:16px 0 8px}
   <div class="bar" role="group" aria-label="表示の間隔">
     <button type="button" id="b1" aria-pressed="true">1時間ごと</button>
     <button type="button" id="b3" aria-pressed="false">3時間ごと</button>
+    <button type="button" id="bw" aria-pressed="false">週間</button>
     <button type="button" id="bgps">現在地を更新</button>
     <button type="button" id="inst" hidden>アプリとして入れる</button>
   </div>
@@ -84,11 +86,11 @@ h2{font-size:.95rem;margin:16px 0 8px}
     </form>
     <div id="cand" class="cand"></div>
   </div>
-  <h2>週間天気</h2>
-  <div class="list" id="week"></div>
-  <h2>1時間ごとの天気</h2>
+  <div id="weekbox" hidden><h2>週間天気</h2><div class="list" id="week"></div></div>
+  <div id="hourbox"><h2 id="hh">1時間ごとの天気</h2>
   <div class="cols" aria-hidden="true"><span>時刻</span><span></span><span>天気</span><span>降水確率</span><span>気温</span><span>気圧</span></div>
   <div class="list" id="list"><div class="msg">読み込み中…</div></div>
+  </div>
   <p class="foot">データ：Open-Meteo（無料・登録不要）。家と仕事場の場所は、この端末のブラウザにだけ保存されます。</p>
 </main>
 <script>
@@ -96,7 +98,7 @@ h2{font-size:.95rem;margin:16px 0 8px}
   var DEF={name:"呉市",lat:34.2490,lon:132.5656};
   var NAMES={gps:"現在地",home:"家",work:"仕事場"};
   var KEYS=["gps","home","work"];
-  var step=1,sel="gps";
+  var step=1,sel="gps",view="h1";
   var pl={gps:null,home:null,work:null};
   var dt={gps:null,home:null,work:null};
   var gpsFail=false;
@@ -210,8 +212,19 @@ h2{font-size:.95rem;margin:16px 0 8px}
 
   function register(k,p){pl[k]=p;save();fetchPlace(k)}
 
-  $("b1").onclick=function(){step=1;$("b1").setAttribute("aria-pressed","true");$("b3").setAttribute("aria-pressed","false");renderList()};
-  $("b3").onclick=function(){step=3;$("b3").setAttribute("aria-pressed","true");$("b1").setAttribute("aria-pressed","false");renderList()};
+  function setView(v){
+    view=v;step=(v==="h3"?3:1);
+    $("b1").setAttribute("aria-pressed",v==="h1"?"true":"false");
+    $("b3").setAttribute("aria-pressed",v==="h3"?"true":"false");
+    $("bw").setAttribute("aria-pressed",v==="wk"?"true":"false");
+    $("weekbox").hidden=(v!=="wk");$("hourbox").hidden=(v==="wk");
+    $("hh").textContent=(v==="h3"?"3時間ごとの天気":"1時間ごとの天気");
+    try{localStorage.setItem("tenki_view",v)}catch(e){}
+    renderList();
+  }
+  $("b1").onclick=function(){setView("h1")};
+  $("b3").onclick=function(){setView("h3")};
+  $("bw").onclick=function(){setView("wk")};
   $("bgps").onclick=gps;
   $("setgps").onclick=function(){
     if(!navigator.geolocation){$("settext").textContent="この端末では位置情報を使えません。地名で登録してください。";return}
@@ -267,7 +280,8 @@ h2{font-size:.95rem;margin:16px 0 8px}
   document.addEventListener("visibilitychange",function(){
     if(document.visibilityState==="visible"&&Date.now()-lastRef>10*60*1000){lastRef=Date.now();gps();["home","work"].forEach(function(k){if(pl[k])fetchPlace(k)})}
   });
-  restore();KEYS.forEach(cacheLoad);renderAll();gps();fetchPlace("home");fetchPlace("work");
+  restore();KEYS.forEach(cacheLoad);renderAll();
+  try{var sv=localStorage.getItem("tenki_view");if(sv==="h1"||sv==="h3"||sv==="wk")setView(sv)}catch(e){}gps();fetchPlace("home");fetchPlace("work");
   setInterval(function(){KEYS.forEach(function(k){if(pl[k])fetchPlace(k)})},1800000);
 })();
 </script>
